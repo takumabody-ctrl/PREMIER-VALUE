@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PREMIER VALUE - プレミア抽選商品チェッカー</title>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0c10;
+            --panel-bg: #1f2833;
+            --accent-gold: #c5a059;
+            --accent-hover: #d4af37;
+            --text-main: #c5c6c7;
+            --text-light: #ffffff;
+            --danger: #cf4520;
+            --success: #4caf50;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--accent-gold);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--accent-gold);
+            margin: 0;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-title {
+            color: var(--text-light);
+            font-size: 1.2em;
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px;
+            background-color: #12151c;
+            border: 1px solid #333;
+            color: var(--text-light);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent-gold);
+        }
+
+        .row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .col {
+            flex: 1;
+        }
+
+        button {
+            background-color: var(--accent-gold);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .btn-excel {
+            background-color: #1d6f42;
+            /* Excel green */
+            color: white;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .btn-excel:hover {
+            background-color: #218c53;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        th {
+            background-color: #151a22;
+            color: var(--accent-gold);
+            font-weight: normal;
+            position: sticky;
+            top: 0;
+        }
+
+        tr:hover {
+            background-color: #2a3644;
+        }
+
+        .status-box {
+            text-align: center;
+            padding: 15px;
+            font-size: 14px;
+            color: var(--accent-gold);
+            display: none;
+        }
+
+        .loader {
+            border: 4px solid #333;
+            border-top: 4px solid var(--accent-gold);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .badge-high {
+            background: var(--danger);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .badge-mid {
+            background: var(--accent-gold);
+            color: black;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        /* スマホ向けレスポンシブデザイン（モバイル最適化） */
+        @media (max-width: 768px) {
+            .row {
+                flex-direction: column;
+            }
+
+            .panel {
+                padding: 15px;
+            }
+
+            header h1 {
+                font-size: 20px;
+            }
+
+            /* テーブルをカード型レイアウトに変換 */
+            table,
+            thead,
+            tbody,
+            th,
+            td,
+            tr {
+                display: block;
+            }
+
+            thead tr {
+                display: none;
+                /* スマホではヘッダー行を非表示 */
+            }
+
+            tr {
+                margin-bottom: 20px;
+                background-color: #1a222c;
+                border-radius: 8px;
+                padding: 10px;
+                border: 1px solid var(--accent-gold);
+            }
+
+            td {
+                border: none;
+                border-bottom: 1px solid #2a3644;
+                position: relative;
+                padding: 10px 10px 10px 40%;
+                text-align: right;
+                font-size: 13px;
+                min-height: 20px;
+            }
+
+            td:last-child {
+                border-bottom: none;
+            }
+
+            td:before {
+                position: absolute;
+                top: 10px;
+                left: 10px;
+                width: 35%;
+                white-space: nowrap;
+                text-align: left;
+                font-weight: bold;
+                color: var(--accent-gold);
+                font-size: 11px;
+            }
+
+            /* 各セルのラベル定義 */
+            td:nth-of-type(1):before {
+                content: "需要";
+            }
+
+            td:nth-of-type(2):before {
+                content: "カテゴリ";
+            }
+
+            td:nth-of-type(3):before {
+                content: "商品名/抽選名";
+            }
+
+            td:nth-of-type(4):before {
+                content: "仕入(予想)";
+            }
+
+            td:nth-of-type(5):before {
+                content: "利益(予想)";
+            }
+
+            td:nth-of-type(6):before {
+                content: "スケジュール";
+            }
+
+            td:nth-of-type(7):before {
+                content: "プレ値理由";
+            }
+
+            td:nth-of-type(8):before {
+                content: "リンク";
+            }
+
+            /* 長文になる項目の微調整 */
+            td:nth-of-type(3) {
+                text-align: left;
+                padding-left: 10px;
+                padding-top: 30px;
+                font-size: 15px;
+            }
+
+            td:nth-of-type(7) {
+                text-align: left;
+                padding-left: 10px;
+                padding-top: 30px;
+            }
+
+            td:nth-of-type(8) {
+                text-align: right !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>PREMIER VALUE</h1>
+            <span style="font-size: 12px; color: #888;">AI Powered Reservation Hunter</span>
+        </header>
+
+        <div class="row">
+            <!-- AI Settings -->
+            <div class="col panel" style="flex: 0.3;">
+                <h2 class="panel-title">SYSTEM SETTINGS</h2>
+                <div class="form-group">
+                    <label>Gemini API Key</label>
+                    <input type="password" id="apiKey" placeholder="AIzaSy...">
+                </div>
+                <div class="form-group" style="margin-top: 20px;">
+                    <button onclick="saveApiKey()"
+                        style="padding: 8px; font-size: 12px; background: #333; color: white;">設定を保存</button>
+                </div>
+                <p style="font-size: 11px; color: #666; margin-top: 20px;">
+                    ※AI機能を使用するにはAPIキーが必要です。<br>
+                    ※キーはお使いのブラウザ内(localStorage)のみに保存されます。
+                </p>
+            </div>
+
+            <!-- Search Parameters -->
+            <div class="col panel" style="flex: 0.7;">
+                <h2 class="panel-title">HUNTING PARAMETERS</h2>
+                <div class="row">
+                    <div class="col form-group">
+                        <label>検索対象期間</label>
+                        <select id="timeRange">
+                            <option value="3日以内">3日以内に予約/抽選が開始・終了する商品</option>
+                            <option value="1週間以内" selected>1週間以内に予約/抽選が開始・終了する商品</option>
+                            <option value="2週間以内">2週間以内に予約/抽選が開始・終了する商品</option>
+                            <option value="1か月以内">1か月以内に予約/抽選が開始・終了する商品</option>
+                            <option value="2か月以内">2か月以内に予約/抽選が開始・終了する商品</option>
+                        </select>
+                    </div>
+                    <div class="col form-group">
+                        <label>仕入金額上限</label>
+                        <select id="maxPrice">
+                            <option value="30000" selected>30,000円以内</option>
+                            <option value="50000">50,000円以内</option>
+                            <option value="10000">10,000円以内</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>抽出件数</label>
+                    <input type="number" id="targetCount" value="20" min="5" max="30">
+                </div>
+                <button id="searchBtn" onclick="runSearch()">AIクローラー起動（抽出実行）</button>
+            </div>
+        </div>
+
+        <!-- Status -->
+        <div id="statusBox" class="status-box panel">
+            <div class="loader"></div>
+            <span id="statusText">Googleの全検索レイヤーへAIを接続中... (約30秒〜1分かかります)</span>
+        </div>
+
+        <!-- Results -->
+        <div class="panel" id="resultsPanel" style="display: none;">
+            <h2 class="panel-title">EXTRACTION RESULTS</h2>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">需要</th>
+                            <th style="width: 15%;">カテゴリ</th>
+                            <th style="width: 20%;">商品名 / 抽選名</th>
+                            <th style="width: 10%;">仕入(予想)</th>
+                            <th style="width: 10%;">利益(予想)</th>
+                            <th style="width: 10%;">スケジュール</th>
+                            <th style="width: 20%;">プレ値理由（AI見解）</th>
+                            <th style="width: 10%;">リンク</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultList"></tbody>
+                </table>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="copyBtn" class="btn-excel" style="flex: 1; background-color: #0f9d58;"
+                    onclick="copyToSpreadsheet()">スプレッドシートに直接貼り付け（コピー）</button>
+                <button id="excelBtn" class="btn-excel" style="flex: 1; background-color: #333;"
+                    onclick="exportToCSV()">ファイル(.csv)でダウンロード</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize API Key from storage
+        document.addEventListener("DOMContentLoaded", () => {
+            const key = localStorage.getItem("premierValue_GeminiKey");
+            if (key) {
+                document.getElementById("apiKey").value = key;
+            }
+        });
+
+        function saveApiKey() {
+            const key = document.getElementById("apiKey").value.trim();
+            if (key) {
+                localStorage.setItem("premierValue_GeminiKey", key);
+                alert("APIキーを保存しました。");
+            } else {
+                alert("APIキーを入力してください。");
+            }
+        }
+
+        let globalData = []; // Store the latest results for Excel export
+
+        async function runSearch() {
+            const apiKey = document.getElementById("apiKey").value.trim();
+            if (!apiKey) {
+                alert("Gemini API Keyが設定されていません。");
+                return;
+            }
+
+            const timeRange = document.getElementById("timeRange").value;
+            const maxPrice = document.getElementById("maxPrice").value;
+            const count = document.getElementById("targetCount").value;
+
+            // UI Updates
+            document.getElementById("searchBtn").disabled = true;
+            document.getElementById("statusBox").style.display = "block";
+            document.getElementById("resultsPanel").style.display = "none";
+            document.getElementById("resultList").innerHTML = "";
+
+            // Today's date for accurate search
+            const today = new Date();
+            const dateStr = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+
+            // The Prompt
+            const promptText = `
+あなたはプロの転売リサーチャーおよび相場アナリストです。
+現在の日付は ${dateStr} です。
+
+以下の条件に【完全に】合致する、熱狂的なファン層がいてプレミア（プレ値）化が確実視されている「限定予約商品」「抽選商品」をウェブ検索して特定し、**需要（人気）が高い順番**に ${count} 件抽出してください。検索機能を使って最新情報を取得し、架空のデータを作らないでください。
+
+【抽出条件リスト】
+1. 検索対象時期: 今日(${dateStr})から見て「${timeRange}」の間に予約開始、または抽選受付が行われている商品であること。過去に終了したものは絶対に含めない。
+2. 仕入金額: ${maxPrice}円 以内であること。
+3. 抽出対象の限定（重要）:
+  ・【抽出許可】ヤフオクやメルカリなどで容易に個人が出品・郵送が可能な『有形の物品（モノ）』に限定すること。（例：スニーカー、ポケカ、アニメフィギュア、一番くじ、限定アパレル、ゲーム機、ハイブランドグッズなど）
+  ・【絶対除外】ライブチケット、コンサートチケット、イベント入場券、宿泊券、乗車券、航空券、電子チケット、デジタルコンテンツ、アカウントデータ類は【絶対に】リストに含めないこと。チケット類は全て除外せよ。
+
+【出力フォーマット】
+以下の指定フォーマットの純粋なJSON配列（Array）として出力してください。Markdownのコードブロック記号（\`\`\`json 等）は一切含めず、直接 '[' から開始し ']' で終了すること。
+
+[
+  {
+    "product": "商品名（抽選名など詳細に）",
+    "category": "カテゴリ名",
+    "cost": 15000, 
+    "profit": 8000, 
+    "schedule": "YYYY/MM/DD 予約or抽選開始",
+    "reason": "AI見解: なぜファンが熱狂し、プレ値が付くのかの具体的理由",
+    "demand": "高",
+    "url": "その商品の予約・抽選ページのURL（直リンク・必須）"
+  }
+]
+※重要: costとprofitは、「円」やカンマ(,)を含めない純粋な【半角数字の整数（Integer）】を出力してください。
+`;
+
+            try {
+                document.getElementById("statusText").innerText = "情報を収集中... (AI Search Grounding 稼働中)";
+
+                const modelsToTry = [
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-pro",
+                    "gemini-1.5-flash"
+                ];
+
+                const payload = {
+                    contents: [{
+                        role: "user",
+                        parts: [{ text: promptText }]
+                    }],
+                    tools: [
+                        { googleSearch: {} }
+                    ]
+                };
+
+                let response;
+                let data;
+                let lastErrorMsg = "";
+
+                for (const model of modelsToTry) {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    console.log("Trying model: " + model);
+
+                    try {
+                        response = await fetch(url, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            data = await response.json();
+                            console.log("Success with model: " + model);
+                            break; // 成功した場合はループを抜ける
+                        } else {
+                            const errData = await response.json();
+                            lastErrorMsg = errData.error?.message || response.statusText;
+                            console.warn(`Model ${model} failed:`, lastErrorMsg);
+                        }
+                    } catch (e) {
+                        lastErrorMsg = e.message;
+                        console.warn(`Model ${model} fetch error:`, e);
+                    }
+                }
+
+                if (!data) {
+                    throw new Error("API通信エラー(全モデルでの試行に失敗しました): " + lastErrorMsg);
+                }
+
+                // Extract text from response
+                let aiText = "";
+                try {
+                    aiText = data.candidates[0].content.parts[0].text;
+                } catch (e) {
+                    throw new Error("AIから有効なテキストが返却されませんでした。");
+                }
+
+                // Cleanup potential markdown fences
+                aiText = aiText.replace(/```json/gi, "").replace(/```/g, "").trim();
+
+                let jsonString = aiText;
+                const startIdx = aiText.indexOf('[');
+                const endIdx = aiText.lastIndexOf(']');
+                if (startIdx !== -1 && endIdx !== -1) {
+                    jsonString = aiText.substring(startIdx, endIdx + 1);
+                }
+
+                let productList;
+                try {
+                    productList = JSON.parse(jsonString);
+                } catch (e) {
+                    console.error("Parse Error:", jsonString, e);
+                    const snippet = aiText.length > 200 ? aiText.substring(0, 200) + "..." : aiText;
+                    throw new Error("AI結果が正しいデータ(JSON)形式ではありませんでした。\n--- AIの生の回答 ---\n" + snippet + "\n\n※再度「AIクローラー起動」を押して再検索してください。");
+                }
+
+                // Validate array
+                if (!Array.isArray(productList)) {
+                    throw new Error("抽出データがリスト形式になっていません。再検索してください。");
+                }
+
+                // Render Results
+                globalData = productList;
+                renderTable(productList);
+
+                document.getElementById("statusBox").style.display = "none";
+                document.getElementById("resultsPanel").style.display = "block";
+                document.getElementById("copyBtn").style.display = "block";
+                document.getElementById("excelBtn").style.display = "block";
+
+            } catch (error) {
+                console.error(error);
+                alert("エラーが発生しました: \n" + error.message);
+                document.getElementById("statusBox").style.display = "none";
+            } finally {
+                document.getElementById("searchBtn").disabled = false;
+            }
+        }
+
+        function renderTable(list) {
+            const tbody = document.getElementById("resultList");
+            tbody.innerHTML = "";
+
+            list.forEach((item, index) => {
+                const tr = document.createElement("tr");
+
+                // Demand Badge
+                let badgeClass = item.demand === "高" ? "badge-high" : "badge-mid";
+
+                // NaN対策で数字以外を除去して純粋な数値に変換
+                const parseNum = (val) => Number(String(val).replace(/[^0-9]/g, '')) || 0;
+                const costVal = parseNum(item.cost);
+                const profitVal = parseNum(item.profit);
+
+                tr.innerHTML = `
+                <td><span class="${badgeClass}">#${index + 1} ${item.demand || "高"}</span></td>
+                <td style="color: #888; font-size: 12px;">${item.category || "-"}</td>
+                <td style="font-weight: bold; color: var(--text-light);">${item.product || "-"}</td>
+                <td style="color: #ffbaba;">¥${costVal.toLocaleString()}</td>
+                <td style="color: var(--success); font-weight: bold;">+¥${profitVal.toLocaleString()}</td>
+                <td>${item.schedule || "-"}</td>
+                <td style="font-size: 11px; line-height: 1.4;">${item.reason || "-"}</td>
+                <td style="text-align: center;"><a href="${item.url || '#'}" target="_blank" style="display:inline-block; padding:6px 8px; background:var(--accent-gold); color:#000; text-decoration:none; border-radius:4px; font-size:11px; font-weight:bold;">予約<br>ページ</a></td>
+            `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Export to Google Spreadsheet compatible CSV
+        function exportToCSV() {
+            if (!globalData || globalData.length === 0) {
+                alert("出力するデータがありません。");
+                return;
+            }
+
+            const sheetData = [
+                ["需要順位", "カテゴリ", "商品名・抽選名", "仕入金額(円)", "予想利益金额(円)", "スケジュール", "プレ値の理由・AI分析", "予約ページURL"]
+            ];
+
+            globalData.forEach((item, idx) => {
+                const parseNum = (val) => Number(String(val).replace(/[^0-9]/g, '')) || 0;
+                sheetData.push([
+                    idx + 1,
+                    item.category || "",
+                    item.product || "",
+                    parseNum(item.cost),
+                    parseNum(item.profit),
+                    item.schedule || "",
+                    item.reason || "",
+                    item.url || ""
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "抽出結果リスト");
+
+            const now = new Date();
+            const dateStr = `${now.getMonth() + 1}月${now.getDate()}日`;
+
+            // 出力形式をエクセルからCSVに変更（Googleスプレッドシートインポート用）
+            XLSX.writeFile(wb, `Premier_Value_抽出リスト_${dateStr}.csv`);
+        }
+
+        // コピー機能（スプレッドシートに直接貼り付けるためのTSV文字列を作成）
+        function copyToSpreadsheet() {
+            if (!globalData || globalData.length === 0) {
+                alert("コピーするデータがありません。");
+                return;
+            }
+
+            let tsvContent = "需要順位\tカテゴリ\t商品名・抽選名\t仕入金額(円)\t予想利益金额(円)\tスケジュール\tプレ値の理由・AI分析\t予約ページURL\n";
+            globalData.forEach((item, idx) => {
+                const parseNum = (val) => Number(String(val).replace(/[^0-9]/g, '')) || 0;
+                // TSV内で改行やタブが混ざるとズレるので置換
+                const clean = str => String(str || "").replace(/\t/g, ' ').replace(/\n/g, ' ');
+                tsvContent += `${idx + 1}\t${clean(item.category)}\t${clean(item.product)}\t${parseNum(item.cost)}\t${parseNum(item.profit)}\t${clean(item.schedule)}\t${clean(item.reason)}\t${clean(item.url)}\n`;
+            });
+
+            navigator.clipboard.writeText(tsvContent).then(() => {
+                alert("スプレッドシート用のデータをクリップボードにコピーしました！\n\nGoogleスプレッドシートを開き、「A1」セルを選択して「貼り付け(Ctrl+V)」を押すだけできれいに表が入ります。");
+            }).catch(err => {
+                console.error('コピー失敗:', err);
+                alert("コピーに失敗しました。お手数ですが、ダウンロードボタンをご利用ください。");
+            });
+        }
+
+    </script>
+</body>
+
+</html>
