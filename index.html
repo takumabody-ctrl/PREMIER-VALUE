@@ -216,8 +216,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
       <button class="btn-save btn-full" onclick="saveSettings()">💾 設定を保存</button>
       <button class="btn btn-gray btn-sm btn-full" style="margin-top:6px" onclick="testApiKey()">🔌 API接続テスト</button>
-      <div id="apiTestResult" style="font-size:11px;margin-top:6px;line-height:1.5;word-break:break-all"></div>
-      <p class="hint">※APIキーはブラウザ内(localStorage)のみ保存<br>※送料はメルカリ利益計算に使用</p>
+      <button class="btn btn-blue btn-sm btn-full" style="margin-top:4px" onclick="listModels()">🔍 利用可能モデルを確認</button>
+      <div id="apiTestResult" style="font-size:11px;margin-top:6px;line-height:1.6;word-break:break-all;max-height:200px;overflow-y:auto"></div>
+      <p class="hint">※APIキーはブラウザ内(localStorage)のみ保存<br>※送料はメルカリ利益計算に使用<br>※<a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--gold)">AI Studio</a>でAPIキーを取得してください</p>
     </div>
 
     <!-- Hunting Parameters -->
@@ -556,8 +557,12 @@ const GEMINI_MODELS = [
 ];
 
 async function callGemini(apiKey, prompt){
+  // Prefer dynamically fetched models (from listModels), else use hardcoded fallbacks
+  const tryList = (window._availableModels||[]).length
+    ? window._availableModels.map(m=>[m,'v1beta'])
+    : GEMINI_MODELS;
   const errors = [];
-  for(const [model, apiVer] of GEMINI_MODELS){
+  for(const [model, apiVer] of tryList){
     try{
       setStatus(`🔄 ${model} に接続中...`);
       const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`;
@@ -594,6 +599,39 @@ async function callGemini(apiKey, prompt){
 function setStatus(msg){
   const el = document.getElementById('statusText');
   if(el) el.textContent = msg;
+}
+
+async function listModels(){
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if(!apiKey){ alert('APIキーを入力してください'); return; }
+  const el = document.getElementById('apiTestResult');
+  el.style.color = 'var(--text-d)';
+  el.textContent = '🔄 利用可能モデルを取得中...';
+  try{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`);
+    const data = await res.json();
+    if(!res.ok){
+      el.style.color = 'var(--red)';
+      el.textContent = `❌ ${res.status}: ${data?.error?.message||'不明'}`;
+      return;
+    }
+    const models = (data.models||[])
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.replace('models/',''));
+    if(!models.length){
+      el.style.color = 'var(--red)';
+      el.textContent = '❌ generateContent対応モデルが見つかりません。APIキーの権限を確認してください。';
+      return;
+    }
+    el.style.color = 'var(--green)';
+    el.innerHTML = `✅ 利用可能モデル (${models.length}件):<br>` +
+      models.map(m=>`<span style="color:var(--gold)">• ${m}</span>`).join('<br>');
+    // Auto-update GEMINI_MODELS with available models
+    window._availableModels = models;
+  }catch(e){
+    el.style.color = 'var(--red)';
+    el.textContent = `❌ 通信エラー: ${e.message}`;
+  }
 }
 
 async function testApiKey(){
