@@ -542,50 +542,53 @@ ${phase.focus}
 上記フォーマットで${count}件分のJSONを出力してください。`;
 }
 
+// (model, apiVersion) pairs — ordered by availability
+const GEMINI_MODELS = [
+  ['gemini-2.0-flash',           'v1beta'],
+  ['gemini-2.0-flash-exp',       'v1beta'],
+  ['gemini-2.5-flash-preview-04-17', 'v1beta'],
+  ['gemini-1.5-flash-latest',    'v1beta'],
+  ['gemini-1.5-flash-002',       'v1beta'],
+  ['gemini-1.5-pro-latest',      'v1beta'],
+  ['gemini-2.0-flash',           'v1'],
+  ['gemini-1.5-flash',           'v1'],
+  ['gemini-1.5-pro',             'v1'],
+];
+
 async function callGemini(apiKey, prompt){
-  // Models in order of preference — NO responseMimeType to avoid 400 errors
-  const MODELS = [
-    'gemini-1.5-flash',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.5-flash',
-  ];
   const errors = [];
-  for(const model of MODELS){
+  for(const [model, apiVer] of GEMINI_MODELS){
     try{
       setStatus(`🔄 ${model} に接続中...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const payload = {
-        contents:[{role:'user',parts:[{text:prompt}]}],
-        generationConfig:{temperature:0.2, maxOutputTokens:8192}
-      };
+      const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`;
       const res = await fetch(url,{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload)
+        body:JSON.stringify({
+          contents:[{role:'user',parts:[{text:prompt}]}],
+          generationConfig:{temperature:0.2, maxOutputTokens:8192}
+        })
       });
       const data = await res.json();
       if(!res.ok){
         const msg = data?.error?.message || `HTTP ${res.status}`;
-        errors.push(`${model}: ${msg}`);
-        console.warn(`❌ ${model}:`, msg);
+        errors.push(`${model}(${apiVer}): ${msg.slice(0,80)}`);
         continue;
       }
       const cand = data.candidates?.[0];
-      if(!cand){ errors.push(`${model}: candidatesなし`); continue; }
-      if(cand.finishReason === 'SAFETY'){ errors.push(`${model}: セーフティフィルター`); continue; }
+      if(!cand){ errors.push(`${model}: no candidates`); continue; }
+      if(cand.finishReason === 'SAFETY'){ errors.push(`${model}: SAFETY block`); continue; }
       const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
-      if(text && text.length > 50){
-        console.log(`✅ ${model} 成功 (${text.length}文字)`);
+      if(text && text.length > 20){
+        console.log(`✅ ${model}(${apiVer}) 成功 ${text.length}文字`);
         return text;
       }
       errors.push(`${model}: 空レスポンス`);
     }catch(e){
       errors.push(`${model}: ${e.message}`);
-      console.warn(`❌ ${model} 例外:`, e.message);
     }
   }
-  throw new Error('接続失敗:\n' + errors.join('\n'));
+  throw new Error('全モデル失敗:\n' + errors.join('\n'));
 }
 
 function setStatus(msg){
@@ -598,28 +601,37 @@ async function testApiKey(){
   if(!apiKey){ alert('APIキーを入力してください'); return; }
   const el = document.getElementById('apiTestResult');
   el.style.color = 'var(--text-d)';
-  el.textContent = '🔄 テスト中...';
-  const model = 'gemini-1.5-flash';
-  try{
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const res = await fetch(url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{role:'user',parts:[{text:'Say "OK" in one word.'}]}]})
-    });
-    const data = await res.json();
-    if(res.ok){
-      const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || '(応答あり)';
-      el.style.color = 'var(--green)';
-      el.textContent = `✅ 接続成功！ (${model}) 応答: "${txt.trim()}"`;
-    } else {
-      el.style.color = 'var(--red)';
-      el.textContent = `❌ エラー ${res.status}: ${data?.error?.message||'不明'}`;
+  el.textContent = '🔄 テスト中... (複数モデルを順番に試します)';
+
+  for(const [model, apiVer] of GEMINI_MODELS){
+    el.textContent = `🔄 ${model} (${apiVer}) を試行中...`;
+    try{
+      const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{role:'user',parts:[{text:'日本語で「接続OK」とだけ答えてください。'}]}]})
+      });
+      const data = await res.json();
+      if(res.ok){
+        const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || '(応答あり)';
+        el.style.color = 'var(--green)';
+        el.textContent = `✅ 接続成功！ モデル: ${model} (${apiVer})　応答: "${txt.trim()}"`;
+        return;
+      } else {
+        const msg = data?.error?.message || `HTTP ${res.status}`;
+        el.style.color = 'var(--text-d)';
+        el.textContent = `⚠️ ${model}: ${msg.slice(0,60)} → 次を試します...`;
+        await new Promise(r=>setTimeout(r,500));
+      }
+    }catch(e){
+      el.style.color = 'var(--text-d)';
+      el.textContent = `⚠️ ${model}: ${e.message} → 次を試します...`;
+      await new Promise(r=>setTimeout(r,500));
     }
-  }catch(e){
-    el.style.color = 'var(--red)';
-    el.textContent = `❌ 通信エラー: ${e.message}`;
   }
+  el.style.color = 'var(--red)';
+  el.textContent = '❌ 全モデルで接続失敗。APIキーが正しいか、Google AI StudioでGemini APIが有効か確認してください。';
 }
 
 function parseJSON(text){
