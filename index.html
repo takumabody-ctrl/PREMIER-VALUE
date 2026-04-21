@@ -487,141 +487,119 @@ function buildPrompt(phase, selectedCatIds, count, timeRange, maxPrice){
   const dateStr = today();
 
   if(phase.id === 'phase3'){
-    return `あなたは転売専門マーケットアナリストです。本日は${dateStr}です。古物商免許を持つ転売業者向けのリサーチです。
-Googleを使って実際にウェブを検索し、以下の条件を満たす「即転売で利益が出る商品」を${count}件リストアップしてください。
+    return `あなたは日本のフリマ・オークション市場に精通したリサーチアナリストです。本日は${dateStr}です。古物商免許を持つ転売業者向けのリサーチです。
 
-━━ 即転売リサーチの対象 ━━
+メルカリ・ヤフオクで安く仕入れて即転売で利益が出る商品を${count}件リストアップしてください。
+
+【対象商品】
+ポケモンカード・スポーツカード・スニーカー（Nike/New Balance等）・フィギュア・ブランド品・ゲームソフト・レトロゲーム・ヴィンテージ品・時計・カメラ・楽器・アニメグッズ・LEGO・BEARBRICK等、古物商が扱える高回転商品
+
+【条件】
+- 仕入れ上限: ${maxPrice}円以内
+- 利益率30%以上（送料700円・メルカリ手数料10%込み）
+- 実際にメルカリ・ヤフオクで売却実績がある商品のみ
+- 平均30日以内に売れる需要がある商品
+
+【除外】チケット・医薬品・食品・デジタルコンテンツ・偽ブランド品
+
+【仕入れ相場】= メルカリ・ヤフオクで現在出品されている安値帯（実際に購入可能な価格）
+【売却相場】= メルカリ・ヤフオクの売却済み・落札済み実績価格の平均（出品中価格ではない）
+
+【出力】JSON配列のみ。説明文不要。
+
+[{"product":"商品名（型番・モデル含む）","category":"即転売","cost":仕入れ相場整数,"mercariPrice":売却実績相場整数,"profit":推定利益整数,"schedule":"常時仕入れ可能","applyMethod":"仕入れ方法と検索キーワード","difficulty":"低or中or高","reason":"価格差の根拠と実売データ","demand":"高or中","url":"メルカリまたはヤフオクの検索URL"}]
+
+上記フォーマットで${count}件出力してください。`;
+  }
+
+  return `あなたは日本の転売・フリマ市場に精通したリサーチアナリストです。本日は${dateStr}です。
+以下の条件を満たす転売向け商品を${count}件、必ずJSON配列形式でリストアップしてください。
+
+【検索カテゴリ】
 ${phase.focus}
 
-━━ 必須条件 ━━
-① 仕入れ価格${maxPrice}円以内で、メルカリ・ヤフオクに現在出品されている商品
-② 仕入れ価格より【確実に高く】売れる実績がある商品
-③ メルカリ・ヤフオクの【実際の落札・売却済み価格】（sold実績）を必ずGoogle検索で確認すること
-④ 利益率30%以上見込める商品（送料・手数料込みで）
-⑤ 古物商が扱える有形物（ブランド品・カード・フィギュア・スニーカー・ゲーム・楽器・時計等）
+【必須条件】
+1. ネット完結（スマホ・PCのみ）で応募・購入できること。店舗不要
+2. 公式サイト・正規販売店の抽選または販売のみ（二次流通除外）
+3. 応募・購入時期: ${dateStr}前後${timeRange}以内
+4. 仕入れ定価: ${maxPrice}円以下
+5. メルカリ・ヤフオクで定価の1.5倍以上で実際に取引されている商品のみ
+6. 個人でメルカリ出品可能な有形物
 
-━━ 絶対除外 ━━
-✗ チケット ✗ 医薬品 ✗ デジタルコンテンツ ✗ 食品 ✗ 偽ブランド品
+【除外】チケット・医薬品・デジタルコンテンツ・食品・転売禁止商品
 
-━━ 各商品についてGoogle検索で実売データを確認して記載 ━━
-- 仕入れ相場（現在メルカリ・ヤフオクに出品されている安い価格帯）
-- 売却相場（メルカリ・ヤフオクの【売却済み・落札済み】の実際の価格。出品中の価格ではなく実売価格を重視）
-- 価格差と利益の根拠
-- 仕入れの具体的な方法・検索キーワード
+【メルカリ相場の算出】
+- 売却済み・落札済みの実際の成約価格を基準にすること（出品中価格ではない）
+- 複数件の中央値または平均値を使用
+- 根拠のある具体的な金額を記載（例: 「メルカリ売却済み実績: 8,000〜12,000円、平均10,000円」）
 
-━━ 出力形式 ━━
-JSON配列のみ。Markdownコードブロック禁止。'['で始まり']'で終わること。
+【出力】必ずJSON配列のみ。説明文・見出し・Markdownは一切不要。
 
-[
-  {
-    "product": "商品名（型番・モデル名含む具体的な名称）",
-    "category": "即転売",
-    "cost": 仕入れ相場価格（整数のみ。現在の安値帯）,
-    "mercariPrice": 売却相場（整数のみ。【売却済み実績価格】ベース）,
-    "profit": 推定利益（整数のみ。売却価格×0.9 - 仕入れ - 送料700円）,
-    "schedule": "常時仕入れ可能",
-    "applyMethod": "仕入れ方法（例: メルカリで○○と検索 / ヤフオク即決で仕入れ）",
-    "difficulty": "低または中または高",
-    "reason": "価格差の理由・実売データ（例: ヤフオク落札実績○万円、メルカリ売却実績○万円）",
-    "demand": "高または中",
-    "url": "メルカリまたはヤフオクの検索URL"
-  }
-]`;
-  }
+[{"product":"商品名","category":"カテゴリ","cost":定価整数,"mercariPrice":メルカリ実売相場整数,"profit":推定利益整数,"schedule":"応募期間","applyMethod":"応募方法","difficulty":"低or中or高","reason":"プレ値理由と実売根拠","demand":"高or中","url":"公式応募URL"}]
 
-  return `あなたは転売専門マーケットアナリストです。本日は${dateStr}です。
-Googleを使って実際にウェブを検索し、以下の条件を【全て】満たす商品を徹底リサーチして${count}件リストアップしてください。
-
-━━ 今回の検索カテゴリ ━━
-${phase.focus}
-
-━━ 必須条件（全て満たすこと） ━━
-① 【完全ネット完結】スマホ・PCのみで応募完結。店舗訪問・並び不要。応募→当選→自宅配送の流れが確立されていること
-② 【公式サイト・正規店のみ】ブランド公式サイト・正規販売店の抽選のみ。転売サイト・二次流通は除外
-③ 【応募時期】${dateStr}から${timeRange}の間に応募受付中または開始予定
-④ 【仕入上限】定価${maxPrice}円以内
-⑤ 【実売実績確認】メルカリ・ラクマ・ヤフオクの【売却済み・落札済み実績】で定価の1.5倍以上で売れている実績をGoogle検索で確認すること。出品中の価格ではなく【実際に売れた価格】を使用すること
-⑥ 【個人出品可能な有形物】メルカリで普通に出品できる物。冷蔵不要・資格不要・転売禁止記載なし
-
-━━ 絶対除外 ━━
-✗ チケット全般 ✗ 医薬品・サプリメント ✗ デジタルコンテンツ・ゲームコード ✗ 大型家電・家具 ✗ 食品・飲料 ✗ 転売禁止商品
-
-━━ メルカリ相場価格の算出方法（重要） ━━
-【必ずGoogle検索で「商品名 メルカリ 売れた」「商品名 ヤフオク 落札」等を検索し、実際の成約価格を確認すること】
-- 優先順位1: メルカリ・ラクマの売却済み実績価格（最重要）
-- 優先順位2: ヤフオクの落札済み実績価格
-- 優先順位3: 現在出品中の平均価格（実売データがない場合のみ）
-- 複数件の平均値を使用し、外れ値は除外すること
-
-━━ 各商品について必ずGoogleで調査して記載 ━━
-1. 正式商品名・抽選名
-2. 応募ページの直URL（公式サイトの直リンク必須）
-3. 応募方法・サイト名・会員登録要否
-4. 定価（仕入価格）- 正確な金額を記載
-5. メルカリ実売相場（売却済み実績ベース、複数件の平均）
-6. 推定利益（メルカリ相場×0.9 - 定価 - 送料700円）
-7. 応募期間・当選発表日・発送予定日
-8. プレ値になる具体的理由と実売実績
-9. 応募難易度
-
-━━ 出力形式 ━━
-JSON配列のみ出力。Markdownコードブロック不使用。'['で始まり']'で終わること。
-
-[
-  {
-    "product": "商品の正式名称",
-    "category": "カテゴリ（TCG/スニーカー/フィギュア等）",
-    "cost": 定価（整数のみ）,
-    "mercariPrice": メルカリ実売相場（整数のみ。売却済み実績ベース）,
-    "profit": 推定利益（整数のみ）,
-    "schedule": "YYYY/MM/DD 応募開始〜MM/DD締切",
-    "applyMethod": "応募方法（例: 公式サイト会員登録必要 / Nike SNKRS APPから応募）",
-    "difficulty": "低または中または高",
-    "reason": "プレ値理由と実売実績（例: メルカリ売却実績○円×○件確認）",
-    "demand": "高または中",
-    "url": "応募ページの直URL（公式サイトのみ）"
-  }
-]`;
+上記フォーマットで${count}件分のJSONを出力してください。`;
 }
 
 async function callGemini(apiKey, prompt){
-  const models = [
-    'gemini-2.5-flash-preview-05-20',
-    'gemini-2.5-flash',
+  // Strategy 1: JSON mode (most reliable for structured output)
+  const jsonModels = [
     'gemini-2.0-flash',
     'gemini-2.0-flash-exp',
     'gemini-1.5-pro',
-    'gemini-1.5-flash'
+    'gemini-1.5-flash',
   ];
-  for(const model of models){
+  for(const model of jsonModels){
     try{
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const payload = {
         contents:[{role:'user',parts:[{text:prompt}]}],
-        tools:[{googleSearch:{}}],
-        generationConfig:{temperature:0.1, maxOutputTokens:16384}
+        generationConfig:{
+          temperature:0.2,
+          maxOutputTokens:16384,
+          responseMimeType:'application/json'
+        }
       };
       const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       if(res.ok){
         const data = await res.json();
         const cand = data.candidates?.[0];
         if(!cand){ console.warn(model,'no candidates'); continue; }
-        // Concatenate ALL text parts (handles thinking models with multiple parts)
-        const text = (cand.content?.parts||[])
-          .filter(p=>p.text)
-          .map(p=>p.text)
-          .join('');
+        const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
+        if(text){
+          console.log(`✅ ${model} (JSON mode) returned ${text.length} chars`);
+          return text;
+        }
+        console.warn(model,'empty text');
+      } else {
+        const errText = await res.text();
+        console.warn(`${model} HTTP ${res.status}:`, errText.slice(0,200));
+      }
+    }catch(e){ console.warn('model error',model,e.message); }
+  }
+
+  // Strategy 2: gemini-2.5 with thinking (may not support responseMimeType)
+  const thinkingModels = ['gemini-2.5-flash','gemini-2.5-flash-preview-05-20'];
+  for(const model of thinkingModels){
+    try{
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents:[{role:'user',parts:[{text:prompt}]}],
+        generationConfig:{temperature:0.1, maxOutputTokens:16384}
+      };
+      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(res.ok){
+        const data = await res.json();
+        const cand = data.candidates?.[0];
+        if(!cand) continue;
+        const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
         if(text && text.includes('[')){
           console.log(`✅ ${model} returned ${text.length} chars`);
           return text;
         }
-        console.warn(model,'no usable text in response');
-      } else {
-        const errText = await res.text();
-        console.warn(`${model} HTTP ${res.status}:`, errText.slice(0,300));
       }
-    }catch(e){ console.warn('model error',model,e.message); }
+    }catch(e){ console.warn(model,e.message); }
   }
+
   throw new Error('全モデルでの接続に失敗しました。APIキーを確認してください。');
 }
 
