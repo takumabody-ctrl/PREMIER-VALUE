@@ -268,6 +268,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="phases" id="phaseChips"></div>
     <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
     <p class="status-text" id="statusText">準備中...</p>
+    <!-- Debug: raw AI response viewer -->
+    <div id="debugPanel" style="display:none;margin-top:12px">
+      <div style="font-size:11px;color:var(--gold);margin-bottom:4px">🔍 AIの生レスポンス（デバッグ用）</div>
+      <textarea id="debugRaw" style="width:100%;height:120px;font-size:10px;font-family:monospace;background:#0a0b0f;color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px" readonly></textarea>
+      <div style="font-size:11px;color:var(--text-d);margin-top:4px" id="debugStatus"></div>
+    </div>
   </div>
 
   <!-- Results -->
@@ -735,27 +741,48 @@ async function runSearch(){
 
     try{
       document.getElementById('statusText').textContent = `${phase.label} — AIが検索中... (${i+1}/${phasesToRun.length})`;
+      document.getElementById('debugPanel').style.display = 'block';
+      document.getElementById('debugRaw').value = '通信中...';
+      document.getElementById('debugStatus').textContent = '';
+
       const text = await callGemini(apiKey, prompt);
+
+      // Show raw response for debugging
+      document.getElementById('debugRaw').value = text;
       document.getElementById('statusText').textContent = `${phase.label} — JSON解析中...`;
-      const items = parseJSON(text);
+
+      let items;
+      try{
+        items = parseJSON(text);
+      }catch(parseErr){
+        document.getElementById('debugStatus').textContent = `⚠️ JSON解析失敗: ${parseErr.message} — 上のテキストをコピーして報告してください`;
+        document.getElementById('statusText').textContent = `⚠️ ${phase.label} — JSON解析失敗`;
+        await new Promise(r=>setTimeout(r,2000));
+        continue;
+      }
+
       if(Array.isArray(items) && items.length){
         items.forEach(item=>{
           item.cost        = parseNum(item.cost);
           item.mercariPrice= parseNum(item.mercariPrice);
           item.profit      = calcProfit(item.mercariPrice, item.cost);
         });
-        // Filter out items with 0 cost or 0 mercariPrice (bad data)
-        const valid = items.filter(it=>it.cost>0 && it.mercariPrice>0 && it.product);
+        // Relaxed filter: only require product name (cost/price can be 0 if AI didn't provide)
+        const valid = items.filter(it => it.product && String(it.product).trim());
         allResults = allResults.concat(valid);
+        document.getElementById('debugStatus').textContent = `✅ ${items.length}件取得、${valid.length}件有効`;
         document.getElementById('statusText').textContent = `${phase.label} — ${valid.length}件取得 ✅`;
       } else {
-        document.getElementById('statusText').textContent = `${phase.label} — データなし（AIが適切な商品を見つけられませんでした）`;
+        document.getElementById('debugStatus').textContent = '⚠️ 配列が空または非配列';
+        document.getElementById('statusText').textContent = `${phase.label} — データなし`;
       }
     }catch(e){
       console.warn(`Phase ${i} error:`, e);
       const errMsg = e.message || String(e);
+      document.getElementById('debugRaw').value = errMsg;
+      document.getElementById('debugStatus').textContent = 'API呼び出し失敗';
       document.getElementById('statusText').innerHTML =
-        `<span style="color:var(--red)">❌ ${esc(phase.label)} エラー:<br>${esc(errMsg)}</span>`;
+        `<span style="color:var(--red)">❌ ${esc(phase.label)}: ${esc(errMsg.slice(0,120))}</span>`;
       await new Promise(r=>setTimeout(r,3000));
     }
 
