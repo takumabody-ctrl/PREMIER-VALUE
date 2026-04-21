@@ -215,6 +215,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <input type="number" id="shippingCost" value="700" min="0" max="3000">
       </div>
       <button class="btn-save btn-full" onclick="saveSettings()">💾 設定を保存</button>
+      <button class="btn btn-gray btn-sm btn-full" style="margin-top:6px" onclick="testApiKey()">🔌 API接続テスト</button>
+      <div id="apiTestResult" style="font-size:11px;margin-top:6px;line-height:1.5;word-break:break-all"></div>
       <p class="hint">※APIキーはブラウザ内(localStorage)のみ保存<br>※送料はメルカリ利益計算に使用</p>
     </div>
 
@@ -541,66 +543,83 @@ ${phase.focus}
 }
 
 async function callGemini(apiKey, prompt){
-  // Strategy 1: JSON mode (most reliable for structured output)
-  const jsonModels = [
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-pro',
+  // Models in order of preference — NO responseMimeType to avoid 400 errors
+  const MODELS = [
     'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
   ];
-  for(const model of jsonModels){
+  const errors = [];
+  for(const model of MODELS){
     try{
+      setStatus(`🔄 ${model} に接続中...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const payload = {
         contents:[{role:'user',parts:[{text:prompt}]}],
-        generationConfig:{
-          temperature:0.2,
-          maxOutputTokens:16384,
-          responseMimeType:'application/json'
-        }
+        generationConfig:{temperature:0.2, maxOutputTokens:8192}
       };
-      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      if(res.ok){
-        const data = await res.json();
-        const cand = data.candidates?.[0];
-        if(!cand){ console.warn(model,'no candidates'); continue; }
-        const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
-        if(text){
-          console.log(`✅ ${model} (JSON mode) returned ${text.length} chars`);
-          return text;
-        }
-        console.warn(model,'empty text');
-      } else {
-        const errText = await res.text();
-        console.warn(`${model} HTTP ${res.status}:`, errText.slice(0,200));
+      const res = await fetch(url,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if(!res.ok){
+        const msg = data?.error?.message || `HTTP ${res.status}`;
+        errors.push(`${model}: ${msg}`);
+        console.warn(`❌ ${model}:`, msg);
+        continue;
       }
-    }catch(e){ console.warn('model error',model,e.message); }
-  }
-
-  // Strategy 2: gemini-2.5 with thinking (may not support responseMimeType)
-  const thinkingModels = ['gemini-2.5-flash','gemini-2.5-flash-preview-05-20'];
-  for(const model of thinkingModels){
-    try{
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const payload = {
-        contents:[{role:'user',parts:[{text:prompt}]}],
-        generationConfig:{temperature:0.1, maxOutputTokens:16384}
-      };
-      const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      if(res.ok){
-        const data = await res.json();
-        const cand = data.candidates?.[0];
-        if(!cand) continue;
-        const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
-        if(text && text.includes('[')){
-          console.log(`✅ ${model} returned ${text.length} chars`);
-          return text;
-        }
+      const cand = data.candidates?.[0];
+      if(!cand){ errors.push(`${model}: candidatesなし`); continue; }
+      if(cand.finishReason === 'SAFETY'){ errors.push(`${model}: セーフティフィルター`); continue; }
+      const text = (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join('');
+      if(text && text.length > 50){
+        console.log(`✅ ${model} 成功 (${text.length}文字)`);
+        return text;
       }
-    }catch(e){ console.warn(model,e.message); }
+      errors.push(`${model}: 空レスポンス`);
+    }catch(e){
+      errors.push(`${model}: ${e.message}`);
+      console.warn(`❌ ${model} 例外:`, e.message);
+    }
   }
+  throw new Error('接続失敗:\n' + errors.join('\n'));
+}
 
-  throw new Error('全モデルでの接続に失敗しました。APIキーを確認してください。');
+function setStatus(msg){
+  const el = document.getElementById('statusText');
+  if(el) el.textContent = msg;
+}
+
+async function testApiKey(){
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if(!apiKey){ alert('APIキーを入力してください'); return; }
+  const el = document.getElementById('apiTestResult');
+  el.style.color = 'var(--text-d)';
+  el.textContent = '🔄 テスト中...';
+  const model = 'gemini-1.5-flash';
+  try{
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const res = await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:'Say "OK" in one word.'}]}]})
+    });
+    const data = await res.json();
+    if(res.ok){
+      const txt = data.candidates?.[0]?.content?.parts?.[0]?.text || '(応答あり)';
+      el.style.color = 'var(--green)';
+      el.textContent = `✅ 接続成功！ (${model}) 応答: "${txt.trim()}"`;
+    } else {
+      el.style.color = 'var(--red)';
+      el.textContent = `❌ エラー ${res.status}: ${data?.error?.message||'不明'}`;
+    }
+  }catch(e){
+    el.style.color = 'var(--red)';
+    el.textContent = `❌ 通信エラー: ${e.message}`;
+  }
 }
 
 function parseJSON(text){
@@ -684,8 +703,10 @@ async function runSearch(){
       }
     }catch(e){
       console.warn(`Phase ${i} error:`, e);
-      document.getElementById('statusText').textContent = `⚠️ ${phase.label} エラー: ${e.message.slice(0,80)}`;
-      await new Promise(r=>setTimeout(r,2000));
+      const errMsg = e.message || String(e);
+      document.getElementById('statusText').innerHTML =
+        `<span style="color:var(--red)">❌ ${esc(phase.label)} エラー:<br>${esc(errMsg)}</span>`;
+      await new Promise(r=>setTimeout(r,3000));
     }
 
     document.getElementById(`chip-${i}`).classList.remove('active');
