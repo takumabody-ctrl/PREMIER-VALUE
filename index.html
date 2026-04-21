@@ -705,6 +705,23 @@ function parseJSON(text){
   throw new Error('JSONの解析に失敗しました。AIの返答: '+text.slice(0,200));
 }
 
+async function autoFetchModels(apiKey){
+  try{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`);
+    if(!res.ok) return false;
+    const data = await res.json();
+    const models = (data.models||[])
+      .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+      .map(m=>m.name.replace('models/',''));
+    if(models.length){
+      window._availableModels = models;
+      console.log('✅ 利用可能モデル:', models);
+      return true;
+    }
+  }catch(e){ console.warn('listModels failed:', e.message); }
+  return false;
+}
+
 async function runSearch(){
   const apiKey = document.getElementById('apiKey').value.trim();
   if(!apiKey){ alert('Gemini API Keyを設定してください。'); return; }
@@ -722,6 +739,17 @@ async function runSearch(){
   document.getElementById('searchBtn').disabled = true;
   document.getElementById('progressPanel').style.display = 'block';
   document.getElementById('resultsPanel').style.display = 'none';
+  document.getElementById('debugPanel').style.display = 'none';
+
+  // Auto-fetch available models before search
+  setStatus('🔍 利用可能なモデルを確認中...');
+  const fetched = await autoFetchModels(apiKey);
+  if(fetched){
+    setStatus(`✅ モデル確認完了 (${(window._availableModels||[]).length}件利用可能)`);
+  } else {
+    setStatus('⚠️ モデル一覧取得失敗 — フォールバックリストを使用');
+  }
+  await new Promise(r=>setTimeout(r,800));
 
   // Build phase chips
   const chips = document.getElementById('phaseChips');
